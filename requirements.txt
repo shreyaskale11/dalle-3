@@ -1,0 +1,6 @@
+openai
+Pillow
+streamlit
+streamlit_drawable_canvas 
+numpy 
+streamlit_cropper
