@@ -99,7 +99,7 @@ else:
         bg_image = st.file_uploader("Background image:", type=["png", "jpg"])
         
         if bg_image:
-            
+            st.image(bg_image)
             original_upload_img = bg_image
             st.set_option('deprecation.showfileUploaderEncoding', False)
 
