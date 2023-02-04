@@ -21,9 +21,9 @@ def openai_completion(prompt):
     return response['choices'][0]['text']
 
 @st.cache(persist=True,allow_output_mutation=True,show_spinner=False,suppress_st_warning=True)
-def openai_image(prompt):
+def openai_image(prompt1):
     response = openai.Image.create(
-      prompt=prompt,
+      prompt=prompt1,
       n=1,
       size="512x512"
     )
@@ -44,7 +44,17 @@ def openai_variation(byte_array):
     image_url = response['data']
     return image_url
 
-
+@st.cache(persist=True,allow_output_mutation=True,show_spinner=False,suppress_st_warning=True)
+def openai_modify(byte_array_img,byte_array_mask,modify_text):
+    response = openai.Image.create_edit(
+        image=byte_array_img,
+        mask= byte_array_mask,
+        prompt=modify_text,
+        n=1,
+        size="512x512"
+    )
+    image_url = response['data'][0]['url']
+    return image_url
 
 st.title("📄 ChatGPT + DALL-E 🏜 Streamlit")
 format_type = st.selectbox('Choose your OpenAI magician 😉',["ChatGPT","DALL-E 2"])
@@ -59,7 +69,17 @@ if 'img_url_1_var_2' not in st.session_state:
     st.session_state['img_url_1_var_2'] = []
 if 'img_url_1_var_3' not in st.session_state:
     st.session_state['img_url_1_var_3'] = []
+if 'img_url_1_modify_1' not in st.session_state:
+    st.session_state['img_url_1_modify_1'] = []
 
+if 'img_upload_1_modify_1' not in st.session_state:
+    st.session_state['img_upload_1_modify_1'] = []
+if 'img_upload_1_var_1' not in st.session_state:
+    st.session_state['img_upload_1_var_1'] = []
+if 'img_upload_1_var_2' not in st.session_state:
+    st.session_state['img_upload_1_var_2'] = []
+if 'img_upload_1_var_3' not in st.session_state:
+    st.session_state['img_upload_1_var_3'] = []
 
 if format_type == "ChatGPT":
     input_text = st.text_area("Please enter text here... 🙋",height=50)
@@ -79,68 +99,49 @@ else:
         bg_image = st.file_uploader("Background image:", type=["png", "jpg"])
         
         if bg_image:
+            
             original_upload_img = bg_image
             st.set_option('deprecation.showfileUploaderEncoding', False)
-            
+
             Crop_image =st.checkbox("Crop Image")
             if Crop_image:
+                col3,col1,col2 = st.columns([1, 2,2])
                 # Upload an image and set some options for demo purposes
                 st.header("Cropper Demo")
                 img_file = bg_image
                 box_color = '#000000'
-                aspect_choice = st.radio(label="Aspect Ratio", options=["1:1", "16:9", "4:3", "2:3", "Free"])
+                aspect_choice = col3.radio(label="Aspect Ratio", options=["1:1", "16:9", "4:3", "2:3", "Free"])
                 aspect_dict = { "1:1": (1, 1), "16:9": (16, 9), "4:3": (4, 3), "2:3": (2, 3), "Free": None }
                 aspect_ratio = aspect_dict[aspect_choice]
                 if img_file:
                     img = Image.open(img_file)
                     # Get a cropped image from the frontend
-                    cropped_img = st_cropper(img, realtime_update=True, box_color=box_color, aspect_ratio=aspect_ratio)
-                    # Manipulate cropped image at will
-                    st.write("Preview")
-                    _ = cropped_img.thumbnail((150,150))
-                    st.image(cropped_img)
+                    with col1:
+                        cropped_img = st_cropper(img, realtime_update=True, box_color=box_color, aspect_ratio=aspect_ratio)
+                    with col2:
+                        # Manipulate cropped image at will
+                        st.write("Preview")
+                        _ = cropped_img.thumbnail((150,150))
+                        st.image(cropped_img)
                     bg_image = cropped_img 
 
-            # MASK
-            mask_image = st.checkbox("mask image")
-            if mask_image:
-                # Specify canvas parameters in application
-                # drawing_mode = st.sidebar.selectbox(
-                #     "Drawing tool:",
-                #     ("freedraw", "line", "rect", "circle", "transform", "polygon", "point"),
-                # )
+            mode_choice2 = st.radio(label="Select Mode", options=["None","Mask", "Variation"])
+            
+            # upload img MASK ----------------------------
+            if mode_choice2 == "Mask":
+                st.info("Mark the element in the image with black color where you want to modify ")
                 drawing_mode = "freedraw"
-                stroke_width = st.slider("Stroke width: ", 1, 25, 20)
-                if drawing_mode == 'point':
-                    point_display_radius = st.sidebar.slider("Point display radius: ", 1, 25, 3)
-                # stroke_color = st.sidebar.color_picker("Stroke color hex: ")
+                stroke_width = st.slider("Stroke width: ", 1, 30, 20)
                 stroke_color = '#000000'
                 bg_color =  "#eee"
-                # bg_image = st.sidebar.file_uploader("Background image:", type=["png", "jpg"])
                 # Resize the background image
                 if Crop_image:
                     bg_image_ = bg_image
                 else:
                     bg_image_ = Image.open(bg_image)
                 width = 512
-                # if bg_image_.size[0]>bg_image_.size[1]:
-                #     width = bg_image_.size[0]
-                # else:
-                #     width = bg_image_.size[1]
-
                 bg_image_resize = bg_image_.resize(size= (width,width))
-                # alpha1 = bg_image_resize[:,:,3]
-                # st.image(alpha1)
-                # Create a new image with the same size as the background image
-                # new_image = Image.new('RGBA', bg_image_resize.size)
-                # # Paste the background image on the new image
-                # new_image.paste(bg_image_resize, (0,0))
                 new_image = bg_image_resize
-                # st.write(bg_image_resize)
-                # bg_image_ = Image.open(bg_image)
-                # st.write(bg_image.size)
-                # width, height = bg_image_.size[0], bg_image_.size[0]
-                # bg_image_ = bg_image_.resize((width, height))
                 # Create a canvas component
                 canvas_result = st_canvas(
                     fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
@@ -173,7 +174,7 @@ else:
                     bg_image_image.save(byte_stream, format='PNG')
                     byte_array_img = byte_stream.getvalue()
 
-                    # Convert the image to a BytesIO object
+                    # Convert the mask to a BytesIO object
                     bg_image_image = new_image
                     bg_image_image = bg_image_image.convert('RGBA')
                     bg_image_array = np.array(bg_image_image)
@@ -188,51 +189,171 @@ else:
                     byte_stream_ = BytesIO()
                     new_bg_image.save(byte_stream_, format='PNG')
                     byte_array_mask = byte_stream_.getvalue()
-                    # out = Image.convert("RGBA", mask_img)  
-                    # st.write(out)
-                # if canvas_result.json_data is not None:
-                #     objects = pd.json_normalize(canvas_result.json_data["objects"])
-                #     for col in objects.select_dtypes(include=["object"]).columns:
-                #         objects[col] = objects[col].astype("str")
-                #     st.dataframe(objects)
+
+                modify_text1 = st.text_area("Please enter text here..... 🙋",height=50)
+                modify2 = st.button("Modify")
+                if modify2 and modify_text1.strip() != "":
+                    image_url = openai_modify(byte_array_img,byte_array_mask,modify_text1)
+                    st.session_state['img_upload_1_modify_1']  = image_url
+                else:
+                    st.warning("Please enter something!!! ⚠")
+
+                if st.session_state['img_upload_1_modify_1'] :
+                    st.image(st.session_state['img_upload_1_modify_1'] , caption='Generated by OpenAI')
+
+            # upload img variation  --------------------
+            if mode_choice2 == "Variation":
+                """ Variation """
+                variation_img = st.button("Get variation of image")
+                if variation_img:
+                    if Crop_image:
+                        image = bg_image
+                    else:
+                        image = Image.open(bg_image)
+                    # image = Image.open(bg_image)
+                    width, height = 512, 512
+                    image_r = image.resize((width, height))
+                    # Convert the image to a BytesIO object
+                    byte_stream = BytesIO()
+                    image_r.save(byte_stream, format='PNG')
+                    byte_array = byte_stream.getvalue()
+                    variation_url = openai_variation(byte_array)
+                    st.session_state['img_upload_1_var_1'] = variation_url[0]['url']
+                    st.session_state['img_upload_1_var_2'] = variation_url[1]['url']
+                    st.session_state['img_upload_1_var_3'] = variation_url[2]['url']
+
+                if st.session_state['img_upload_1_var_3']:
+                    col1,col2,col3 = st.columns(3)
+                    col1.image(st.session_state['img_upload_1_var_1'], caption='Variation 1') 
+                    col2.image(st.session_state['img_upload_1_var_2'], caption='Variation 2') 
+                    col3.image(st.session_state['img_upload_1_var_3'], caption='Variation 3') 
+                    
+                    image_choice1 = st.radio(label="Select Image", options=["Variation 1", "Variation 2", "Variation 3"])
+                    aspect_dict = { "Variation 1" : st.session_state['img_upload_1_var_1'] ,
+                                    "Variation 2" : st.session_state['img_upload_1_var_2'], 
+                                    "Variation 3": st.session_state['img_upload_1_var_3'] 
+                                }
+                    selected_img_url1 = aspect_dict[image_choice1]
 
 
-    
-    input_text = st.text_area("Please enter text here... 🙋",height=50)
-    image_button = st.button("Generate Image 🚀")
 
-    
-    if not upload_img and image_button:
-        image_url_1 = openai_image(input_text)
-        st.session_state['img_url_1'] = image_url_1
-        
-    if st.session_state['img_url_1']:
-        st.image(st.session_state['img_url_1'], caption='Generated by OpenAI') 
+    # generate from text --------------------------------------------------------------------------------------------------
+    else:
+        input_text = st.text_area("Please enter text here... 🙋",height=50)
+        image_button = st.button("Generate Image 🚀")
+        if image_button and input_text.strip() != "":
+            image_url_1 = openai_image(input_text)
+            st.session_state['img_url_1'] = image_url_1
+        else:
+            st.warning("Please enter something! ⚠")
+            
+        if st.session_state['img_url_1']:
+            st.image(st.session_state['img_url_1'], caption='Generated by OpenAI') 
 
-    
-    if  st.session_state['img_url_1']:
-        variation_img = st.button("Get variation of image")
-        if variation_img:
-            # Read the image file from disk and resize it
+        if  st.session_state['img_url_1']:
             urllib.request.urlretrieve(st.session_state['img_url_1'], "image_url_1.png")
-            image = Image.open("image_url_1.png")
-            width, height = 512, 512
-            image_r = image.resize((width, height))
-            # Convert the image to a BytesIO object
-            byte_stream = BytesIO()
-            image_r.save(byte_stream, format='PNG')
-            byte_array = byte_stream.getvalue()
-            variation_url = openai_variation(byte_array)
-            st.session_state['img_url_1_var_1'] = variation_url[0]['url']
-            st.session_state['img_url_1_var_2'] = variation_url[1]['url']
-            st.session_state['img_url_1_var_3'] = variation_url[2]['url']
+            img_url_1_open = Image.open("image_url_1.png")
+            
+            mode_choice1 = st.radio(label="Select Mode", options=["None","Mask", "Variation"])
 
-    if st.session_state['img_url_1_var_3']:
-        col1,col2,col3 = st.columns(3)
-        col1.image(st.session_state['img_url_1_var_1'], caption='Generated by OpenAI Variation 1') 
-        col2.image(st.session_state['img_url_1_var_2'], caption='Generated by OpenAI Variation 2') 
-        col3.image(st.session_state['img_url_1_var_3'], caption='Generated by OpenAI Variation 3') 
+            if mode_choice1 == "Mask":
+                """ MASK"""
+                st.info("Mark the element in the image with black color where you want to modify ")
+                drawing_mode = "freedraw"
+                stroke_width = st.slider("Stroke width: ", 1, 30, 20)
+                stroke_color = '#000000'
+                bg_color =  "#eee"
+                # Resize the background image
+                bg_image_ = img_url_1_open
+                width = 512
+                bg_image_resize = bg_image_.resize(size= (width,width))
+                new_image = bg_image_resize
+                # Create a canvas component
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 165, 0, 0.3)",  # Fixed fill color with some opacity
+                    stroke_width=stroke_width,
+                    stroke_color=stroke_color,
+                    background_color=bg_color,
+                    background_image= new_image if new_image else None,
+                    update_streamlit=True,
+                    height=width,
+                    width = width,
+                    drawing_mode=drawing_mode,
+                    point_display_radius=point_display_radius if drawing_mode == 'point' else 0,
+                    display_toolbar=True,
+                    key="full_app",
+                )
 
+                # Do something interesting with the image data and paths
+                if canvas_result.image_data is not None:
+                    mask_img = canvas_result.image_data
+                    # st.write("out")
+                    # st.write(canvas_result.image_data.shape)
+                    # st.image(canvas_result.image_data)
+                    alpha = mask_img[:,:,3]
+                    # st.write(alpha)
+
+                    # Convert the image to a BytesIO object
+                    bg_image_image = new_image
+                    bg_image_image = bg_image_image.convert('RGBA')
+                    byte_stream = BytesIO()
+                    bg_image_image.save(byte_stream, format='PNG')
+                    byte_array_img = byte_stream.getvalue()
+
+                    # Convert the mask to a BytesIO object
+                    bg_image_image = new_image
+                    bg_image_image = bg_image_image.convert('RGBA')
+                    bg_image_array = np.array(bg_image_image)
+                    # st.write(bg_image_array.shape)
+                    for i in range(width):
+                        for j in range(width):
+                            if mask_img[:,:,3][i][j]>0:
+                                bg_image_array[:,:,3][i][j] = 0
+                    # st.write(bg_image_array[:,:,3])
+                    new_bg_image = Image.fromarray(bg_image_array)
+                    # st.write(new_bg_image)
+                    byte_stream_ = BytesIO()
+                    new_bg_image.save(byte_stream_, format='PNG')
+                    byte_array_mask = byte_stream_.getvalue()
+
+                modify_text = st.text_area("Please enter text here.... 🙋",height=50)
+                modify1 = st.button("Modify")
+                if modify1 and modify_text.strip() != "":
+                    image_url = openai_modify(byte_array_img,byte_array_mask,modify_text1)
+                    st.session_state['img_url_1_modify_1']  = image_url
+                else:
+                    st.warning("Please enter something!! ⚠")
+
+                if st.session_state['img_url_1_modify_1'] :
+                    st.image(st.session_state['img_url_1_modify_1'] , caption='Generated by OpenAI')
+
+            if mode_choice1 == "Variation":
+                """ Variation """
+                variation_img = st.button("Get variation of image")
+                if variation_img:
+                    image = img_url_1_open
+                    width, height = 512, 512
+                    image_r = image.resize((width, height))
+                    # Convert the image to a BytesIO object
+                    byte_stream = BytesIO()
+                    image_r.save(byte_stream, format='PNG')
+                    byte_array = byte_stream.getvalue()
+                    variation_url = openai_variation(byte_array)
+                    st.session_state['img_url_1_var_1'] = variation_url[0]['url']
+                    st.session_state['img_url_1_var_2'] = variation_url[1]['url']
+                    st.session_state['img_url_1_var_3'] = variation_url[2]['url']
+
+                if st.session_state['img_url_1_var_3']:
+                    col1,col2,col3 = st.columns(3)
+                    col1.image(st.session_state['img_url_1_var_1'], caption='Variation 1') 
+                    col2.image(st.session_state['img_url_1_var_2'], caption='Variation 2') 
+                    col3.image(st.session_state['img_url_1_var_3'], caption='Variation 3') 
+                image_choice1 = st.radio(label="Select Image", options=["Variation 1", "Variation 2", "Variation 3"])
+                aspect_dict = { "Variation 1" : st.session_state['img_url_1_var_1'] ,
+                                "Variation 2" : st.session_state['img_url_1_var_2'], 
+                                "Variation 3": st.session_state['img_url_1_var_3'] 
+                            }
+                selected_img_url1 = aspect_dict[image_choice1]
 
     # if not variation_img:
     #     if image_button and input_text.strip() != "":
@@ -258,5 +379,4 @@ else:
     #                 image_url = response['data'][0]['url']
     #                 st.image(image_url, caption='Generated by OpenAI')
   
-    #     else:
-    #         st.warning("Please enter something! ⚠")
+
